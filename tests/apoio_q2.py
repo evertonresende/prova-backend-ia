@@ -1,7 +1,8 @@
-"""Apoio aos testes da Q2: um modelo fake que grava tudo o que recebe."""
+"""Apoio aos testes da Q2: modelos fake, um que grava tudo o que recebe e outro que sempre falha."""
 
 from typing import Any
 
+import openai
 from langchain_core.callbacks import CallbackManagerForLLMRun
 from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.messages import AIMessage, BaseMessage
@@ -37,3 +38,20 @@ def modelo_com(*respostas: str) -> ModeloGravador:
     Use um novo por teste: o iterador de respostas se esgota.
     """
     return ModeloGravador(messages=iter([AIMessage(r) for r in respostas]))
+
+
+class ModeloQueFalha(GenericFakeChatModel):
+    """Modelo fake que sempre levanta `openai.OpenAIError`, como numa falha da OpenAI (rede, chave, limite)."""
+
+    def _generate(
+        self,
+        messages: list[BaseMessage],
+        stop: list[str] | None = None,
+        run_manager: CallbackManagerForLLMRun | None = None,
+        **kwargs: Any,
+    ) -> ChatResult:
+        raise openai.OpenAIError("falha simulada")
+
+
+def modelo_que_falha() -> GenericFakeChatModel:
+    return ModeloQueFalha(messages=iter([]))  # "messages" é obrigatório no GenericFakeChatModel
