@@ -29,4 +29,4 @@ def sacar(saldo, valor):
     return saldo - valor
 ```
 
-Ao converter uma exceção em outra, use `raise NovoErro(...) from erro`. Assim o traceback mostra as duas, e quem for depurar enxerga a causa original. Por fim, exceções não são só para falhas raras: em Python é comum tentar a operação e tratar o erro, em vez de checar tudo antes. Esse estilo tem até nome, EAFP: é mais fácil pedir perdão do que permissão.
+Ao converter uma exceção em outra, prefira `raise NovoErro(...) from erro`. Sem o `from`, o traceback também mostra as duas, mas como um erro durante o tratamento da primeira; com ele, a original aparece como causa direta (`__cause__`). Por fim, exceções não são só para falhas raras: em Python é comum tentar a operação e tratar o erro, em vez de checar tudo antes. Esse estilo tem até nome, EAFP: é mais fácil pedir perdão do que permissão.

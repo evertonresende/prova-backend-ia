@@ -4,8 +4,11 @@ from fastapi.testclient import TestClient
 
 from apoio_q3 import POSTS, EmbedderFalso, escrever_corpus
 from q3_busca.__main__ import main
-from q3_busca.indice import Buscador, carregar_corpus, obter_buscador
+from q3_busca.indice import Buscador, carregar_corpus
 from q3_busca.router import router
+
+app_de_teste = FastAPI()
+app_de_teste.include_router(router)
 
 
 @pytest.fixture
@@ -15,11 +18,9 @@ def buscador_falso(tmp_path):
 
 
 @pytest.fixture
-def cliente(buscador_falso):
-    app = FastAPI()
-    app.include_router(router)
-    app.dependency_overrides[obter_buscador] = lambda: buscador_falso
-    return TestClient(app)
+def cliente(monkeypatch, buscador_falso):
+    monkeypatch.setattr("q3_busca.router.obter_buscador", lambda: buscador_falso)
+    return TestClient(app_de_teste)
 
 
 def test_busca_devolve_resultados_no_formato_certo(cliente):
@@ -34,6 +35,19 @@ def test_busca_devolve_resultados_no_formato_certo(cliente):
 @pytest.mark.parametrize("url", ["/busca", "/busca?q=", "/busca?q=%20%20", "/busca?q=x&k=0", "/busca?q=x&k=11"])
 def test_busca_valida_parametros(cliente, url):
     assert cliente.get(url).status_code == 422
+
+
+@pytest.mark.parametrize(
+    "params",
+    [{}, {"q": ""}, {"q": "   "}, {"q": "x" * 501}, {"q": "listas", "k": 0}, {"q": "listas", "k": 11}],
+)
+def test_busca_invalida_da_422_sem_carregar_o_modelo(monkeypatch, params):
+    chamadas = []
+    monkeypatch.setattr("q3_busca.router.obter_buscador", lambda: chamadas.append(1))
+    resposta = TestClient(app_de_teste).get("/busca", params=params)
+    assert resposta.status_code == 422
+    assert isinstance(resposta.json()["detail"], list)
+    assert chamadas == []
 
 
 def test_busca_k_maior_que_corpus_json_valido(cliente):
@@ -53,13 +67,35 @@ def test_cli_demo(capsys, monkeypatch, buscador_falso):
     monkeypatch.setattr("q3_busca.__main__.obter_buscador", lambda: buscador_falso)
     monkeypatch.setattr("q3_busca.__main__.CONSULTAS_DEMO", [("listas append", "01-listas.md")])
     assert main(["--demo"]) == 0
-    assert 'Consulta: "listas append"' in capsys.readouterr().out
+    saida = capsys.readouterr()
+    assert 'Consulta: "listas append"' in saida.out
+    assert "1. [" in saida.out
+    assert "Carregando o modelo" in saida.err
 
 
-def test_cli_sem_argumentos_sai_com_2():
+@pytest.mark.parametrize("argv", [[], ["   "]])
+def test_cli_sem_argumentos_sai_com_2(monkeypatch, argv):
+    chamadas = []
+    monkeypatch.setattr("q3_busca.__main__.obter_buscador", lambda: chamadas.append(1))
     with pytest.raises(SystemExit) as saida:
-        main([])
+        main(argv)
     assert saida.value.code == 2
+    assert chamadas == []
+
+
+def test_cli_demo_e_consulta_juntos_sai_com_2(monkeypatch, buscador_falso):
+    monkeypatch.setattr("q3_busca.__main__.obter_buscador", lambda: buscador_falso)
+    with pytest.raises(SystemExit) as saida:
+        main(["listas", "--demo"])
+    assert saida.value.code == 2
+
+
+def test_cli_ctrl_c_sai_sem_traceback(monkeypatch):
+    def interromper():
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr("q3_busca.__main__.obter_buscador", interromper)
+    assert main(["listas"]) == 0
 
 
 def test_cli_k_invalido(capsys, monkeypatch, buscador_falso):

@@ -1,4 +1,3 @@
-import math
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -54,7 +53,7 @@ def test_mais_parecido_vem_primeiro(docs, tmp_path):
 def test_k_maior_que_o_corpus_sem_linhas_vazias(docs, tmp_path):
     resultados = buscador(docs, tmp_path).buscar("listas", k=10)
     assert len(resultados) == 3
-    assert all(math.isfinite(r.score) for r in resultados)
+    assert {r.arquivo for r in resultados} == set(POSTS)
 
 
 @pytest.mark.parametrize("consulta, k", [("   ", 3), ("listas", 0)])
@@ -73,13 +72,21 @@ def test_trecho_longo_colapsa_espacos_e_corta_em_200(tmp_path):
     assert resultado.trecho == "linha um " + "x" * 191 + "…"
 
 
+def test_trecho_sem_blocos_de_codigo(tmp_path):
+    escrever_corpus(tmp_path / "c", {"codigo.md": "# Código\n\n```python\nx = 1\n```\nTexto do post."})
+    resultado = buscador(carregar_corpus(tmp_path / "c"), tmp_path).buscar("texto", k=1)[0]
+    assert resultado.trecho == "Texto do post."
+
+
 def test_indice_salvo_e_reaproveitado(docs, tmp_path):
     buscador(docs, tmp_path)
     assert (tmp_path / "idx" / "indice.faiss").exists()
     assert (tmp_path / "idx" / "metadados.json").exists()
     embed = EmbedderFalso()
-    buscador(docs, tmp_path, embed)
+    b = buscador(docs, tmp_path, embed)
     assert embed.chamadas == []
+    assert b.indice.ntotal == 3
+    assert b.buscar("listas append", k=1)[0].arquivo == "01-listas.md"
 
 
 def test_indice_em_pasta_com_acento(docs, tmp_path):
@@ -95,6 +102,13 @@ def test_reconstroi_quando_o_corpus_muda(tmp_path):
     escrever_corpus(tmp_path / "c", {"01-listas.md": "# Listas\n\ntexto novo"})
     embed = EmbedderFalso()
     Buscador(embed, carregar_corpus(tmp_path / "c"), pasta_indice=tmp_path / "idx")
+    assert len(embed.chamadas) == 1
+
+
+def test_reconstroi_quando_o_modelo_muda(docs, tmp_path):
+    Buscador(EmbedderFalso(), docs, pasta_indice=tmp_path / "idx")
+    embed = EmbedderFalso()
+    Buscador(embed, docs, nome_modelo="outro", pasta_indice=tmp_path / "idx")
     assert len(embed.chamadas) == 1
 
 

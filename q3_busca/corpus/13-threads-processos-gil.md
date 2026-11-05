@@ -17,6 +17,6 @@ if __name__ == "__main__":
         resultados = list(executor.map(divisores, [10_000_000, 20_000_000]))
 ```
 
-Trocar `ProcessPoolExecutor` por `ThreadPoolExecutor` muda uma linha só; a escolha depende do gargalo. A guarda `if __name__ == "__main__"` é obrigatória com processos no Windows, no macOS e, desde o Python 3.14, também no Linux: os processos novos importam o módulo principal, e sem a guarda cada um tentaria criar outros, o que termina em erro.
+Para usar threads, basta trocar `ProcessPoolExecutor` por `ThreadPoolExecutor`; a escolha depende do gargalo. A guarda `if __name__ == "__main__"` é obrigatória com processos no Windows, no macOS e, desde o Python 3.14, também no Linux: os processos novos importam o módulo principal, e sem a guarda cada um tentaria criar outros, o que termina em erro.
 
 O custo é maior: processos demoram mais para iniciar, e os dados trocados entre eles são serializados com pickle. Vale acompanhar também o free-threading, um CPython sem GIL: experimental no 3.13, oficial desde o 3.14, mas ainda opcional.

@@ -14,6 +14,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -106,7 +107,11 @@ class Buscador:
             self.indice = faiss.deserialize_index(np.frombuffer(caminho_indice.read_bytes(), dtype=np.uint8))
             return
 
-        logger.info("Índice ausente ou desatualizado: gerando os embeddings de %d posts.", len(docs))
+        logger.info(
+            "Índice ausente ou desatualizado: gerando os embeddings de %d posts (o índice fica salvo em %s).",
+            len(docs),
+            pasta_indice,
+        )
         vetores = embed([texto_documento(d) for d in docs])
         # Os vetores têm norma 1, então o produto interno (IP) entre dois deles é exatamente o
         # cosseno do ângulo entre eles: quanto maior, mais parecidos (1 = mesma direção).
@@ -173,8 +178,10 @@ def _gravar_atomico(destino: Path, dados: bytes) -> None:
 
 
 def _trecho(corpo: str) -> str:
-    """Começo do post para mostrar no resultado, com espaços e quebras de linha colapsados."""
-    texto = " ".join(corpo.split())
+    """Começo do post para mostrar no resultado, sem blocos de código e com espaços colapsados."""
+    # O trecho é para leitura: um bloco de código cru no começo do resultado polui a saída.
+    sem_codigo = re.sub(r"```.*?```", " ", corpo, flags=re.S)
+    texto = " ".join(sem_codigo.split())
     return texto if len(texto) <= 200 else texto[:200] + "…"
 
 

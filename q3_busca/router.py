@@ -1,11 +1,12 @@
 """Rota `GET /busca`: a busca semântica pela API."""
 
 from dataclasses import asdict
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, Query
+from pydantic import BaseModel, Field, StringConstraints
 
-from q3_busca.indice import Buscador, obter_buscador
+from q3_busca.indice import obter_buscador
 
 router = APIRouter(prefix="/busca", tags=["Q3 · Busca semântica"])
 
@@ -32,11 +33,16 @@ class ResultadoBusca(BaseModel):
     ),
 )
 def buscar_documentos(
-    q: str = Query(min_length=1, max_length=500, description="Texto da consulta, em linguagem natural."),
-    k: int = Query(3, ge=1, le=10, description="Quantos posts devolver (de 1 a 10)."),
-    buscador: Buscador = Depends(obter_buscador),
+    # Espaços das pontas saem antes de checar o tamanho: "   " vira "" e dá 422.
+    q: Annotated[
+        str,
+        StringConstraints(strip_whitespace=True, min_length=1, max_length=500),
+        Query(description="Texto da consulta, em linguagem natural."),
+    ],
+    k: Annotated[int, Query(ge=1, le=10, description="Quantos posts devolver (de 1 a 10).")] = 3,
 ) -> list[ResultadoBusca]:
-    # O min_length=1 deixa passar "   "; consulta só de espaços não diz nada para buscar.
-    if not q.strip():
-        raise HTTPException(status_code=422, detail="A consulta não pode ser vazia.")
+    # O buscador vem daqui, e não de `Depends`: o FastAPI resolve as dependências antes de
+    # validar `q` e `k`, e uma consulta inválida esperaria o modelo carregar (e, na primeira
+    # vez, baixar) só para receber o 422. Chamado aqui, depois da validação, o 422 sai na hora.
+    buscador = obter_buscador()
     return [ResultadoBusca(**asdict(r)) for r in buscador.buscar(q, k)]

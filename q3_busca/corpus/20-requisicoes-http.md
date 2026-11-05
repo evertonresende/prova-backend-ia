@@ -1,6 +1,6 @@
 # Requisições HTTP com requests
 
-Consumir uma API web é rotina para quem programa em Python, e o pacote `requests` é o jeito mais conhecido de fazer isso. Ele não vem com o Python; instale com `pip install requests`.
+Consumir uma API web é rotina para quem programa em Python, e o pacote `requests` é o jeito mais conhecido de fazer isso. Ele não vem com o Python; instale com `python -m pip install requests`.
 
 ```python
 import requests
