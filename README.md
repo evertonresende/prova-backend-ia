@@ -1,5 +1,7 @@
 # prova-backend-ia
 
+[![testes](https://github.com/evertonresende/prova-backend-ia/actions/workflows/testes.yml/badge.svg)](https://github.com/evertonresende/prova-backend-ia/actions/workflows/testes.yml)
+
 Respostas da prova para Desenvolvedor Backend com foco em IA (Python).
 
 As três questões rodam numa API FastAPI só (`app/main.py`: um Swagger, uma seção por questão). A Q2 e a Q3 também rodam pelo terminal (`python -m q2_chatbot`, `python -m q3_busca`); a Q1 tem o seed (`python -m q1_livros.seed`) e exemplos com `curl`.
@@ -64,7 +66,7 @@ Depois, preencha a `OPENAI_API_KEY` no `.env` (só a Q2 precisa).
 | `LIVROS_DB_PATH` | Opcional; arquivo SQLite da Q1. Padrão (inclusive se ficar vazio): `livros.db`, relativo à pasta atual. |
 
 - Os CLIs (`python -m q2_chatbot` e `python -m q1_livros.seed`) leem o `.env` sozinhos. A API só o lê se subir com `uvicorn app.main:app --env-file .env`; mudou o `.env`, reinicie o uvicorn. Se o `.env` mudar o `LIVROS_DB_PATH`, suba a API com `--env-file .env`, ou ela e o seed vão usar arquivos diferentes. Uma variável já exportada no shell vence a do `.env` (nem os CLIs nem o `--env-file` a sobrescrevem).
-- Rode todos os comandos da raiz do repositório (a pasta deste README): o projeto não é instalado como pacote, então, fora dela, `python -m …`, o `uvicorn` e o `pytest` não acham os módulos, e o `livros.db` iria para outra pasta.
+- Rode todos os comandos da raiz do repositório (a pasta deste README): o projeto não é instalado como pacote, então, fora dela, `python -m …` e o `uvicorn` não acham os módulos, e o `livros.db` iria para outra pasta.
 - O `.env` (e qualquer `.env.*`) fica fora do git; só o `.env.example` é versionado.
 
 ## Testes
@@ -143,6 +145,8 @@ Regras:
 - **`id`:** inteiro de 1 a 2⁶³−1 (o limite do INTEGER do SQLite); fora disso, 422.
 - **Seed:** quando só se sabe o ano de publicação, a data é 1º de janeiro.
 
+Os testes dos endpoints ficam em `tests/test_q1_api.py` (`TestClient` + SQLite em memória: 201 com `Location`, 422, busca sem acento, filtros em E, 404); `tests/test_q1_dados.py` cobre a normalização, a validação e o seed. Só a Q1: `pytest tests/test_q1_api.py tests/test_q1_dados.py`.
+
 ## Q2 — Chatbot de Python
 
 `q2_chatbot/`: LangChain 1.x (`create_agent`, sem ferramentas) + `ChatOpenAI` com o modelo `gpt-6-luna`. Precisa de `OPENAI_API_KEY` no `.env`.
@@ -218,7 +222,7 @@ Você: Qual é a capital da França?
 Bot: Desculpe, só posso ajudar com assuntos relacionados a Python. Se quiser, posso mostrar como guardar `"Paris"` em uma variável ou em uma lista.
 ````
 
-A 2ª pergunta só faz sentido com o histórico ("nela" é a lista da 1ª resposta), e o bot continua na mesma lista `frutas`. A 3ª, fora do tema, é redirecionada para Python.
+A 2ª pergunta só faz sentido com o histórico ("nela" é a lista da 1ª resposta), e o bot volta ao exemplo da lista `frutas`. A 3ª, fora do tema, é recusada e redirecionada para Python, mas o convite ainda deixa escapar "Paris": o escopo depende só do prompt de sistema (veja Decisões técnicas e limitações).
 
 ### `POST /chat`
 
@@ -258,7 +262,7 @@ Liga só por variáveis no `.env` (veja o `.env.example`), sem mudar código:
 - Cada execução leva a tag `cli` ou `api` e o metadado `origem` com o mesmo valor. O `thread_id` (o `conversa_id`) vai nos metadados, e o LangSmith agrupa cada conversa como uma thread. O CLI espera os traces subirem antes de sair.
 - Sem `LANGSMITH_API_KEY`, deixe `LANGSMITH_TRACING=false`: ligado sem chave, nada quebra, mas o CLI imprime avisos do LangSmith e demora para sair.
 
-Esta entrega não tem conta no LangSmith, por isso não há print de trace.
+O tracing não foi testado com uma conta real do LangSmith. O que dá para conferir sem conta está coberto: os testes em `tests/test_q2_chatbot.py` checam a tag, o metadado `origem` e o `thread_id` de cada execução, e as regras acima (`true` em minúsculas, um destino só) foram tiradas do código do SDK `langsmith` 0.14.17, a versão fixada no `requirements.txt`.
 
 ## Q3 — Busca semântica
 
@@ -281,7 +285,7 @@ curl -G http://localhost:8000/busca --data-urlencode "q=como isolar as bibliotec
 3. **Embeddings.** O `encode` do sentence-transformers tokeniza o texto, passa os tokens pelo encoder do `transformers` (tipo BERT, que devolve um vetor por token), tira a média desses vetores (mean pooling) e normaliza o resultado para norma 1: um vetor de 384 números por texto. O e5 lê até 512 tokens e corta o resto em silêncio; o maior post (`14-arquivos.md`) tem 489, e um teste `slow` confere todos. Não há chunking.
 4. **Índice.** Um `faiss.IndexFlatIP` guarda os 20 vetores. Como eles têm norma 1, o produto interno (IP) é exatamente o cosseno do ângulo entre eles. A busca é exata (compara a consulta com todos), o certo para 20 posts.
 5. **Cache em disco.** `q3_busca/.indice/` guarda o índice (`faiss.serialize_index` + I/O do Python, porque o `write_index` do FAISS usa o `fopen` do C e quebra em caminho com acento no Windows; o teste disso roda no Windows do CI) e um `metadados.json` com a impressão digital (SHA-256 do nome do modelo + conteúdo do corpus). Se o corpus ou o nome do modelo mudar, o índice é refeito sozinho. As gravações são atômicas (arquivo temporário + `os.replace`). Para forçar a reconstrução, ou se o cache se corromper, apague a pasta.
-6. **Consulta.** `query: ` + texto → vetor → `index.search` → os `k` posts de maior score. Posição sem vizinho (id `-1` do FAISS) é descartada.
+6. **Consulta.** `Buscador.buscar(consulta, k)`, em `q3_busca/indice.py` (a função que o CLI e o `/busca` chamam): `query: ` + texto → vetor → `index.search` → os `k` posts de maior score. Posição sem vizinho (id `-1` do FAISS) é descartada.
 
 ### Resultados reais da `--demo`
 
