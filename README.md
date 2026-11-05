@@ -1,6 +1,6 @@
 # prova-backend-ia
 
-Respostas da prova para Desenvolvedor Backend com foco em IA (Python). Enunciado: [PROVA.md](PROVA.md).
+Respostas da prova para Desenvolvedor Backend com foco em IA (Python).
 
 As três questões rodam numa API FastAPI só (`app/main.py`: um Swagger, uma seção por questão). A Q2 e a Q3 também rodam pelo terminal (`python -m q2_chatbot`, `python -m q3_busca`); a Q1 tem o seed (`python -m q1_livros.seed`) e exemplos com `curl`.
 
