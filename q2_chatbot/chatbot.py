@@ -61,7 +61,7 @@ def criar_modelo() -> ChatOpenAI:
         max_retries=MAX_TENTATIVAS,
         # O gpt-6-luna é modelo de raciocínio (padrão `medium`). `low` corta
         # latência e custo; pergunta de Python não pede raciocínio profundo.
-        # Vai sempre: `OPENAI_MODEL` precisa ser modelo de raciocínio (os outros o recusam).
+        # `reasoning_effort` vai sempre: um `OPENAI_MODEL` sem raciocínio o recusa.
         reasoning_effort=ESFORCO_RACIOCINIO,
         # Sem `temperature`/`top_p` de propósito: a OpenAI manda removê-los nos
         # modelos de raciocínio quando o esforço não é `none`, e o
