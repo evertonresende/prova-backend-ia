@@ -124,7 +124,9 @@ def test_cli_demo_mostra_perguntas_e_usa_historico(capsys, monkeypatch):
 def test_cli_demo_conta_falhas(capsys, monkeypatch):
     monkeypatch.setattr("q2_chatbot.__main__.criar_modelo", modelo_que_falha)
     assert main(["--demo"]) == 1
-    assert MENSAGEM_FALHA_OPENAI in capsys.readouterr().err
+    erro = capsys.readouterr().err
+    assert erro.count(MENSAGEM_FALHA_OPENAI) == len(PERGUNTAS_DEMO)
+    assert "Detalhe: falha simulada" in erro
 
 
 def test_cli_interativo_ignora_vazio_e_sai(monkeypatch):
