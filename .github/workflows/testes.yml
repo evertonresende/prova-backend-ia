@@ -2,6 +2,9 @@ name: testes
 on:
   push:
   pull_request:
+# Os jobs só leem o repositório.
+permissions:
+  contents: read
 jobs:
   pytest:
     strategy:
@@ -19,4 +22,37 @@ jobs:
           python-version: ${{ matrix.python }}
           cache: pip
       - run: python -m pip install -r requirements.txt
+      # Chave falsa, tracing ligado e rede bloqueada por um proxy que não existe: prova em
+      # todo push que a suíte não precisa de chave, de tracing nem de rede.
       - run: python -m pytest
+        env:
+          OPENAI_API_KEY: x
+          LANGSMITH_TRACING: "true"
+          LANGCHAIN_TRACING_V2: "true"
+          HTTPS_PROXY: http://127.0.0.1:9
+          HTTP_PROXY: http://127.0.0.1:9
+          HF_HUB_OFFLINE: "1"
+  # Atalho só-Q1: só o requirements-q1.txt, sem a pilha de IA.
+  so-q1:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          # Chave de cache própria: com o padrão (hash do requirements.txt), este job teria a
+          # mesma chave do job completo no Ubuntu 3.12 e poderia salvar ali um cache sem a pilha de IA.
+          cache-dependency-path: requirements-q1.txt
+      - run: python -m pip install -r requirements-q1.txt
+      # Mesmo ambiente sem chave, sem tracing e sem rede do job completo.
+      - run: python -m pytest tests/test_ambiente.py tests/test_q1_dados.py tests/test_q1_api.py
+        env:
+          OPENAI_API_KEY: x
+          LANGSMITH_TRACING: "true"
+          LANGCHAIN_TRACING_V2: "true"
+          HTTPS_PROXY: http://127.0.0.1:9
+          HTTP_PROXY: http://127.0.0.1:9
+          HF_HUB_OFFLINE: "1"
+      # O app sobe só com a Q1: sem a pilha de IA, a Q2 e a Q3 ficam de fora.
+      - run: python -c "from app.main import app; caminhos = app.openapi()['paths']; assert '/livros' in caminhos and '/chat' not in caminhos and '/busca' not in caminhos"
