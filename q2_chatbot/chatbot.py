@@ -28,7 +28,8 @@ MAX_TENTATIVAS = 2
 ESFORCO_RACIOCINIO = "low"
 
 MENSAGEM_SEM_CHAVE = (
-    "OPENAI_API_KEY não definida. Copie .env.example para .env e preencha a chave para usar o chatbot."
+    "OPENAI_API_KEY não definida. Copie .env.example para .env e preencha a chave. "
+    "A API só lê o .env se subir com: uvicorn app.main:app --env-file .env"
 )
 MENSAGEM_FALHA_OPENAI = "Falha ao consultar o modelo da OpenAI. Tente de novo em instantes."
 
