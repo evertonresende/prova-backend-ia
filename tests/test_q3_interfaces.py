@@ -67,13 +67,20 @@ def test_cli_demo(capsys, monkeypatch, buscador_falso):
     monkeypatch.setattr("q3_busca.__main__.obter_buscador", lambda: buscador_falso)
     monkeypatch.setattr("q3_busca.__main__.CONSULTAS_DEMO", [("listas append", "01-listas.md")])
     assert main(["--demo"]) == 0
-    assert 'Consulta: "listas append"' in capsys.readouterr().out
+    saida = capsys.readouterr()
+    assert 'Consulta: "listas append"' in saida.out
+    assert "1. [" in saida.out
+    assert "Carregando o modelo" in saida.err
 
 
-def test_cli_sem_argumentos_sai_com_2():
+@pytest.mark.parametrize("argv", [[], ["   "]])
+def test_cli_sem_argumentos_sai_com_2(monkeypatch, argv):
+    chamadas = []
+    monkeypatch.setattr("q3_busca.__main__.obter_buscador", lambda: chamadas.append(1))
     with pytest.raises(SystemExit) as saida:
-        main([])
+        main(argv)
     assert saida.value.code == 2
+    assert chamadas == []
 
 
 def test_cli_demo_e_consulta_juntos_sai_com_2(monkeypatch, buscador_falso):
