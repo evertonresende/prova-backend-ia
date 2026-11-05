@@ -19,8 +19,10 @@ class LivroBase(SQLModel):
     resumo: str = Field(min_length=1, max_length=5000)
 
 
+# Corpo do `POST /livros`. Sem tabela, para que as regras valham de verdade.
+# A docstring abaixo vira o texto público do schema no Swagger.
 class LivroCriar(LivroBase):
-    """Corpo do `POST /livros`. Sem tabela, para que as regras valham de verdade."""
+    """Dados para cadastrar um livro."""
 
     model_config = ConfigDict(
         json_schema_extra={

@@ -135,3 +135,15 @@ def test_openapi_documenta_as_rotas(cliente):
     assert esquema["paths"]["/livros"]["get"]["summary"]
     assert "404" in esquema["paths"]["/livros/{livro_id}"]["get"]["responses"]
     assert "examples" in esquema["components"]["schemas"]["LivroCriar"]
+
+
+def test_openapi_tem_exemplos_location_e_corpo_do_404(cliente):
+    esquema = cliente.app.openapi()
+    resposta_404 = esquema["paths"]["/livros/{livro_id}"]["get"]["responses"]["404"]
+    assert resposta_404["content"]["application/json"]["example"] == {"detail": "Livro não encontrado"}
+    resposta_201 = esquema["paths"]["/livros"]["post"]["responses"]["201"]
+    assert resposta_201["headers"]["Location"]["schema"] == {"type": "string"}
+    assert resposta_201["content"]["application/json"]["schema"]["$ref"].endswith("/LivroLer")
+    filtros = {p["name"]: p for p in esquema["paths"]["/livros"]["get"]["parameters"]}
+    assert [e["value"] for e in filtros["titulo"]["examples"].values()] == ["casmurro"]
+    assert [e["value"] for e in filtros["autor"]["examples"].values()] == ["alencar"]
