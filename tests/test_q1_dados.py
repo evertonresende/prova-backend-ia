@@ -2,10 +2,11 @@ from datetime import date
 
 import pytest
 from pydantic import ValidationError
-from sqlalchemy import text
+from sqlalchemy import func, text
+from sqlalchemy.pool import NullPool, StaticPool
 from sqlmodel import Session, select
 
-from q1_livros.db import criar_engine, criar_tabelas, normalizar
+from q1_livros.db import criar_engine, criar_tabelas, normalizar, url_padrao
 from q1_livros.modelos import Livro, LivroCriar
 from q1_livros.seed import LIVROS_EXEMPLO, popular
 
@@ -38,6 +39,39 @@ def test_dados_persistem_no_arquivo(tmp_path):
     engine.dispose()
     with Session(criar_engine(url)) as sessao:
         assert len(sessao.exec(select(Livro)).all()) == 1
+
+
+def test_banco_em_arquivo_abre_uma_conexao_por_sessao(tmp_path):
+    assert isinstance(criar_engine(f"sqlite:///{tmp_path / 'livros.db'}").pool, NullPool)
+
+
+def test_banco_em_memoria_mantem_uma_conexao_so():
+    assert isinstance(criar_engine("sqlite://").pool, StaticPool)
+
+
+def test_busca_sem_acento_vale_em_toda_sessao_do_arquivo(tmp_path):
+    # Cada sessão abre uma conexão nova: `normalizar` tem que existir em todas.
+    engine = criar_engine(f"sqlite:///{tmp_path / 'livros.db'}")
+    criar_tabelas(engine)
+    with Session(engine) as sessao:
+        sessao.add(Livro.model_validate(LivroCriar(**VALIDO | {"autor": "Érico Veríssimo"})))
+        sessao.commit()
+    for _ in range(2):
+        with Session(engine) as sessao:
+            consulta = select(Livro).where(func.normalizar(Livro.autor).contains("erico"))
+            assert [livro.autor for livro in sessao.exec(consulta).all()] == ["Érico Veríssimo"]
+
+
+def test_url_padrao_usa_o_padrao_quando_a_variavel_esta_vazia(monkeypatch):
+    monkeypatch.setenv("LIVROS_DB_PATH", "")
+    assert url_padrao() == "sqlite:///livros.db"
+
+
+def test_url_padrao_respeita_a_variavel(monkeypatch):
+    monkeypatch.setenv("LIVROS_DB_PATH", "outro.db")
+    assert url_padrao() == "sqlite:///outro.db"
+    monkeypatch.delenv("LIVROS_DB_PATH")
+    assert url_padrao() == "sqlite:///livros.db"
 
 
 def test_livro_criar_remove_espacos_e_converte_data():
