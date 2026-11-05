@@ -5,16 +5,21 @@ from sqlmodel import Session
 
 from q1_livros.db import criar_engine, criar_tabelas, obter_sessao
 from q1_livros.router import router
+from q1_livros.seed import popular
 
 LIVRO = {"titulo": "Dom Casmurro", "autor": "Machado de Assis",
          "data_publicacao": "1899-01-01", "resumo": "Bentinho e Capitu."}
 
 
 @pytest.fixture
-def cliente():
+def engine():
     engine = criar_engine("sqlite://")
     criar_tabelas(engine)
+    return engine
 
+
+@pytest.fixture
+def cliente(engine):
     def sessao_de_teste():
         with Session(engine) as sessao:
             yield sessao
@@ -110,6 +115,20 @@ def test_filtro_tem_no_maximo_200_caracteres(cliente, filtro):
     # Sem o limite, o NFKD transforma cada U+FDFA em 18 caracteres, o padrão do LIKE
     # passa de 50.000 bytes e o SQLite o recusa: a resposta era 500.
     assert cliente.get("/livros", params={filtro: "ﷺ" * 1600}).status_code == 422
+    # Pior caso do NFKD dentro do limite: 200 U+FDFA viram 3.600 caracteres (6.600 bytes
+    # em UTF-8), bem abaixo dos 50.000 bytes do LIKE.
+    resposta = cliente.get("/livros", params={filtro: "ﷺ" * 200})
+    assert resposta.status_code == 200
+    assert resposta.json() == []
+
+
+def test_exemplos_do_swagger_se_encontram_no_seed(cliente, engine):
+    # O "Try it out" do Swagger UI preenche os dois filtros com os exemplos ao mesmo tempo
+    # (e combina em E): com o seed carregado, o resultado não pode ser `[]`.
+    with Session(engine) as sessao:
+        popular(sessao)
+    resposta = cliente.get("/livros", params={"titulo": "casmurro", "autor": "machado"})
+    assert titulos(resposta) == ["Dom Casmurro"]
 
 
 def test_obter_por_id(cliente):
@@ -148,4 +167,4 @@ def test_openapi_tem_exemplos_location_e_corpo_do_404(cliente):
     assert resposta_201["content"]["application/json"]["schema"]["$ref"].endswith("/LivroLer")
     filtros = {p["name"]: p for p in esquema["paths"]["/livros"]["get"]["parameters"]}
     assert [e["value"] for e in filtros["titulo"]["examples"].values()] == ["casmurro"]
-    assert [e["value"] for e in filtros["autor"]["examples"].values()] == ["alencar"]
+    assert [e["value"] for e in filtros["autor"]["examples"].values()] == ["machado"]

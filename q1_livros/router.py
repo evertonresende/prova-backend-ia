@@ -74,7 +74,7 @@ def buscar_livros(
             max_length=200,
             description="Trecho do autor, até 200 caracteres. Ignora maiúsculas e acentos; "
             "vazio = sem filtro.",
-            openapi_examples={"alencar": {"value": "alencar"}},
+            openapi_examples={"machado": {"value": "machado"}},
         ),
     ] = None,
 ) -> list[Livro]:
