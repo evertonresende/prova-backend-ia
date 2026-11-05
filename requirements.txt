@@ -1,0 +1,17 @@
+# Tudo (Q1 + Q2 + Q3). Instale com pip, não com uv.
+--extra-index-url https://download.pytorch.org/whl/cpu
+-r requirements-q1.txt
+# Q2 — chatbot
+langchain==1.4.9
+langchain-core==1.7.5
+langchain-openai==1.7.4
+langgraph==1.2.19
+langsmith==0.14.17
+openai==3.45.0
+# Q3 — busca semântica. torch só CPU; no macOS o wheel padrão já é CPU.
+sentence-transformers==6.2.0
+transformers==5.22.1
+faiss-cpu==1.15.1
+numpy==2.5.4
+torch==2.15.0+cpu ; sys_platform != "darwin"
+torch==2.15.0 ; sys_platform == "darwin"
