@@ -36,8 +36,12 @@ def _responder(chatbot: CompiledStateGraph, pergunta: str, conversa_id: str) -> 
     """Imprime a resposta do bot; numa falha da OpenAI, avisa no stderr e devolve False."""
     try:
         resposta = perguntar(chatbot, pergunta, conversa_id, "cli")
-    except openai.OpenAIError:
+    except openai.OpenAIError as erro:
+        # O CLI roda no terminal de quem tem a chave, e o detalhe (chave inválida,
+        # modelo inexistente, cota esgotada) é o que permite corrigir o problema.
+        # Na API, o detalhe fica só no log do servidor.
         print(MENSAGEM_FALHA_OPENAI, file=sys.stderr)
+        print(f"Detalhe: {erro}", file=sys.stderr)
         return False
     print(f"Bot: {resposta}\n")
     return True
@@ -76,6 +80,14 @@ def main(argv: list[str] | None = None) -> int:
 
     0 = tudo certo; 1 = sem `OPENAI_API_KEY` ou alguma pergunta da demo falhou.
     """
+    # No Windows, com a saída redirecionada (`> arquivo`, `| tee`), o Python grava
+    # em cp1252. Os acentos do português cabem, mas um "→" ou um emoji na resposta
+    # do modelo derrubaria o CLI com `UnicodeEncodeError` (traceback). Com
+    # `errors="replace"`, o caractere que não cabe vira "?".
+    for fluxo in (sys.stdout, sys.stderr):
+        if hasattr(fluxo, "reconfigure"):
+            fluxo.reconfigure(errors="replace")
+
     parser = argparse.ArgumentParser(
         prog="python -m q2_chatbot",
         description="Chatbot especialista em Python (LangChain + OpenAI).",

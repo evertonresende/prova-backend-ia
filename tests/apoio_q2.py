@@ -41,7 +41,10 @@ def modelo_com(*respostas: str) -> ModeloGravador:
 
 
 class ModeloQueFalha(GenericFakeChatModel):
-    """Modelo fake que sempre levanta `openai.OpenAIError`, como numa falha da OpenAI (rede, chave, limite)."""
+    """Modelo fake que sempre levanta `openai.OpenAIError`.
+
+    Simula uma falha da OpenAI (rede, chave, limite).
+    """
 
     def _generate(
         self,

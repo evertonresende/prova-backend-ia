@@ -10,7 +10,7 @@ from typing import Annotated
 from uuid import uuid4
 
 import openai
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 from langgraph.graph.state import CompiledStateGraph
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
@@ -95,10 +95,11 @@ def resetar_chatbot() -> None:
         503: {"description": "`OPENAI_API_KEY` não definida no servidor"},
     },
 )
-def conversar(
-    dados: PerguntaChat,
-    chatbot: Annotated[CompiledStateGraph, Depends(obter_chatbot)],
-) -> RespostaChat:
+def conversar(dados: PerguntaChat) -> RespostaChat:
+    # O FastAPI resolve os `Depends` antes de validar o corpo. Chamando aqui, um
+    # corpo inválido responde 422 mesmo sem chave, e só uma pergunta válida
+    # chega à checagem da chave (503).
+    chatbot = obter_chatbot()
     conversa_id = dados.conversa_id or str(uuid4())
     try:
         resposta = perguntar(chatbot, dados.pergunta, conversa_id, "api")
@@ -108,6 +109,8 @@ def conversar(
         # Limitação: a pergunta que falhou continua no histórico da conversa (o
         # checkpointer a salva antes de chamar o modelo) e vai de novo para o
         # modelo junto com a próxima pergunta.
-        logger.exception("Falha ao consultar a OpenAI (conversa_id=%s)", conversa_id)
+        # `%r` e não `%s`: o `conversa_id` vem do cliente e pode ter quebras de
+        # linha; impresso cru, ele forjaria linhas falsas no log do servidor.
+        logger.exception("Falha ao consultar a OpenAI (conversa_id=%r)", conversa_id)
         raise HTTPException(status_code=502, detail=MENSAGEM_FALHA_OPENAI) from None
     return RespostaChat(resposta=resposta, conversa_id=conversa_id)

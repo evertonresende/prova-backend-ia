@@ -3,12 +3,20 @@ import time
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
-from apoio_q2 import modelo_com
+from apoio_q2 import ModeloGravador, modelo_com
 from q2_chatbot.chatbot import PROMPT_SISTEMA, ChaveAusenteError, criar_chatbot, criar_modelo, perguntar
 
 
 def tipos(mensagens):
     return [type(m) for m in mensagens]
+
+
+class ChatbotQueGuardaConfig:
+    """Chatbot de mentira: guarda o `config` recebido por `invoke` e responde "ok"."""
+
+    def invoke(self, entrada, config):
+        self.config = config
+        return {"messages": [AIMessage("ok")]}
 
 
 def test_primeira_chamada_envia_prompt_de_sistema_e_pergunta():
@@ -39,8 +47,31 @@ def test_conversas_diferentes_nao_misturam_historico():
     assert modelo.recebidas[1][1].content == "qX"
 
 
-def test_criar_modelo_sem_chave_da_erro_claro(monkeypatch):
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+def test_perguntar_devolve_so_o_texto_quando_a_resposta_vem_em_blocos():
+    # Modelos de raciocínio podem responder em blocos: raciocínio + texto.
+    blocos = [
+        {"type": "reasoning", "reasoning": "pensando..."},
+        {"type": "text", "text": "Use []."},
+    ]
+    modelo = ModeloGravador(messages=iter([AIMessage(content=blocos)]))
+    assert perguntar(criar_chatbot(modelo), "Como criar uma lista?", "c1", "teste") == "Use []."
+
+
+def test_perguntar_marca_o_run_com_a_origem():
+    chatbot = ChatbotQueGuardaConfig()
+    perguntar(chatbot, "Olá", "abc", "cli")
+    assert chatbot.config["tags"] == ["cli"]
+    assert chatbot.config["metadata"] == {"origem": "cli"}
+    assert chatbot.config["configurable"] == {"thread_id": "abc"}
+
+
+# Chave vazia é o primeiro caso real: o .env.example vem com `OPENAI_API_KEY=`.
+@pytest.mark.parametrize("chave", [None, ""])
+def test_criar_modelo_sem_chave_da_erro_claro(monkeypatch, chave):
+    if chave is None:
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    else:
+        monkeypatch.setenv("OPENAI_API_KEY", chave)
     with pytest.raises(ChaveAusenteError, match="OPENAI_API_KEY"):
         criar_modelo()
 
