@@ -61,6 +61,7 @@ def criar_modelo() -> ChatOpenAI:
         max_retries=MAX_TENTATIVAS,
         # O gpt-6-luna é modelo de raciocínio (padrão `medium`). `low` corta
         # latência e custo; pergunta de Python não pede raciocínio profundo.
+        # Vai sempre: `OPENAI_MODEL` precisa ser modelo de raciocínio (os outros o recusam).
         reasoning_effort=ESFORCO_RACIOCINIO,
         # Sem `temperature`/`top_p` de propósito: a OpenAI manda removê-los nos
         # modelos de raciocínio quando o esforço não é `none`, e o
@@ -83,7 +84,10 @@ def criar_chatbot(modelo: BaseChatModel) -> CompiledStateGraph:
     # laço de ferramentas nem `bind_tools`.
     # Limitação: a memória é volátil (some quando o processo reinicia) e não tem
     # limite de tamanho (o histórico inteiro vai para o modelo a cada pergunta).
-    # Em produção: checkpointer em SQLite/Postgres e corte do histórico.
+    # Duas perguntas simultâneas no mesmo `conversa_id` partem do mesmo histórico,
+    # e a última gravação vence (um turno some da memória).
+    # Em produção: checkpointer em SQLite/Postgres, corte do histórico e uma trava
+    # por conversa.
     return create_agent(
         model=modelo,
         tools=[],
