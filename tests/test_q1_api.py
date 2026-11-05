@@ -97,6 +97,19 @@ def test_curingas_sao_literais(cliente, termo, esperado):
     assert titulos(cliente.get("/livros", params={"titulo": termo})) == esperado
 
 
+@pytest.mark.parametrize("filtro", ["titulo", "autor"])
+def test_filtro_tem_no_maximo_200_caracteres(cliente, filtro):
+    # Com a tabela vazia o LIKE nem roda: o teste precisa de um livro.
+    cadastrar(cliente)
+    assert cliente.get("/livros", params={filtro: "x" * 201}).status_code == 422
+    resposta = cliente.get("/livros", params={filtro: "x" * 200})
+    assert resposta.status_code == 200
+    assert resposta.json() == []
+    # Sem o limite, o NFKD transforma cada U+FDFA em 18 caracteres, o padrão do LIKE
+    # passa de 50.000 bytes e o SQLite o recusa: a resposta era 500.
+    assert cliente.get("/livros", params={filtro: "ﷺ" * 1600}).status_code == 422
+
+
 def test_obter_por_id(cliente):
     cadastrar(cliente)
     assert cliente.get("/livros/1").json()["titulo"] == "Dom Casmurro"

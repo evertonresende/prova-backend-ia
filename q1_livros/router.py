@@ -47,13 +47,23 @@ def cadastrar_livro(dados: LivroCriar, sessao: Sessao, response: Response) -> Li
 )
 def buscar_livros(
     sessao: Sessao,
+    # O limite de 200 é o tamanho máximo dos campos. Sem ele, um termo longo passava do
+    # limite de 50.000 bytes do padrão do LIKE no SQLite e a busca respondia 500.
     titulo: Annotated[
         str | None,
-        Query(description="Trecho do título. Ignora maiúsculas e acentos; vazio = sem filtro."),
+        Query(
+            max_length=200,
+            description="Trecho do título, até 200 caracteres. Ignora maiúsculas e acentos; "
+            "vazio = sem filtro.",
+        ),
     ] = None,
     autor: Annotated[
         str | None,
-        Query(description="Trecho do autor. Ignora maiúsculas e acentos; vazio = sem filtro."),
+        Query(
+            max_length=200,
+            description="Trecho do autor, até 200 caracteres. Ignora maiúsculas e acentos; "
+            "vazio = sem filtro.",
+        ),
     ] = None,
 ) -> list[Livro]:
     consulta = select(Livro).order_by(Livro.id)
