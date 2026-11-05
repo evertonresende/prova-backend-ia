@@ -83,10 +83,11 @@ def main(argv: list[str] | None = None) -> int:
     # No Windows, com a saída redirecionada (`> arquivo`, `| tee`), o Python grava
     # em cp1252. Os acentos do português cabem, mas um "→" ou um emoji na resposta
     # do modelo derrubaria o CLI com `UnicodeEncodeError` (traceback). Com
-    # `errors="replace"`, o caractere que não cabe vira "?".
-    for fluxo in (sys.stdout, sys.stderr):
-        if hasattr(fluxo, "reconfigure"):
-            fluxo.reconfigure(errors="replace")
+    # `errors="replace"`, o caractere que não cabe vira "?". Só o stdout precisa
+    # disso: o CPython já abre o stderr com `backslashreplace`, que nunca levanta
+    # o erro e ainda mostra o caractere (`\u2192`) na linha `Detalhe:`.
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(errors="replace")
 
     parser = argparse.ArgumentParser(
         prog="python -m q2_chatbot",
