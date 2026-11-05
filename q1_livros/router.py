@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Response
 from sqlalchemy import func
 from sqlmodel import Session, select
 
@@ -73,10 +73,14 @@ def buscar_livros(
     "/{livro_id}",
     response_model=LivroLer,
     summary="Consultar um livro pelo id",
-    description="Devolve o livro com o `id` informado, ou 404 se ele não existir.",
+    description=(
+        "Devolve o livro com o `id` informado, ou 404 se ele não existir. "
+        "O `id` precisa ser um inteiro entre 1 e 2**63 - 1 (o limite do INTEGER do SQLite); "
+        "fora disso a resposta é 422."
+    ),
     responses={404: {"description": "Livro não encontrado"}},
 )
-def obter_livro(livro_id: int, sessao: Sessao) -> Livro:
+def obter_livro(livro_id: Annotated[int, Path(ge=1, le=2**63 - 1)], sessao: Sessao) -> Livro:
     livro = sessao.get(Livro, livro_id)
     if livro is None:
         raise HTTPException(status_code=404, detail="Livro não encontrado")

@@ -105,6 +105,17 @@ def test_obter_por_id(cliente):
     assert resposta.json() == {"detail": "Livro não encontrado"}
 
 
+@pytest.mark.parametrize("livro_id", ["abc", "0", "-1", "99999999999999999999"])
+def test_obter_id_invalido_da_422(cliente, livro_id):
+    # Fora de 1..2**63-1 não cabe no INTEGER do SQLite; tem que ser 422, nunca 500.
+    resposta = cliente.get(f"/livros/{livro_id}")
+    assert resposta.status_code == 422
+
+
+def test_obter_id_no_limite_do_sqlite_da_404(cliente):
+    assert cliente.get(f"/livros/{2**63 - 1}").status_code == 404
+
+
 def test_openapi_documenta_as_rotas(cliente):
     esquema = cliente.app.openapi()
     assert esquema["paths"]["/livros"]["post"]["summary"]
