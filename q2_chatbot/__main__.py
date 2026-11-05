@@ -80,6 +80,14 @@ def main(argv: list[str] | None = None) -> int:
 
     0 = tudo certo; 1 = sem `OPENAI_API_KEY` ou alguma pergunta da demo falhou.
     """
+    # No Windows, com a saída redirecionada (`> arquivo`, `| tee`), o Python grava
+    # em cp1252. Os acentos do português cabem, mas um "→" ou um emoji na resposta
+    # do modelo derrubaria o CLI com `UnicodeEncodeError` (traceback). Com
+    # `errors="replace"`, o caractere que não cabe vira "?".
+    for fluxo in (sys.stdout, sys.stderr):
+        if hasattr(fluxo, "reconfigure"):
+            fluxo.reconfigure(errors="replace")
+
     parser = argparse.ArgumentParser(
         prog="python -m q2_chatbot",
         description="Chatbot especialista em Python (LangChain + OpenAI).",

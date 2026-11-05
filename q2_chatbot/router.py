@@ -109,6 +109,8 @@ def conversar(dados: PerguntaChat) -> RespostaChat:
         # Limitação: a pergunta que falhou continua no histórico da conversa (o
         # checkpointer a salva antes de chamar o modelo) e vai de novo para o
         # modelo junto com a próxima pergunta.
-        logger.exception("Falha ao consultar a OpenAI (conversa_id=%s)", conversa_id)
+        # `%r` e não `%s`: o `conversa_id` vem do cliente e pode ter quebras de
+        # linha; impresso cru, ele forjaria linhas falsas no log do servidor.
+        logger.exception("Falha ao consultar a OpenAI (conversa_id=%r)", conversa_id)
         raise HTTPException(status_code=502, detail=MENSAGEM_FALHA_OPENAI) from None
     return RespostaChat(resposta=resposta, conversa_id=conversa_id)

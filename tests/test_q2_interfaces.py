@@ -1,3 +1,5 @@
+import io
+import sys
 import threading
 import time
 import uuid
@@ -75,6 +77,15 @@ def test_chat_falha_da_openai_devolve_502(app, monkeypatch):
     assert resposta.json() == {"detail": MENSAGEM_FALHA_OPENAI}
 
 
+def test_chat_falha_loga_conversa_id_com_repr(app, monkeypatch, caplog):
+    cliente = com_modelo(app, monkeypatch, modelo_que_falha())
+    corpo = {"pergunta": "Olá", "conversa_id": "a\nlinha falsa"}
+    assert cliente.post("/chat", json=corpo).status_code == 502
+    [registro] = [r for r in caplog.records if r.name == "q2_chatbot.router"]
+    assert "'a\\nlinha falsa'" in registro.getMessage()
+    assert "\n" not in registro.getMessage()
+
+
 def test_obter_chatbot_cria_uma_vez_com_concorrencia(monkeypatch):
     resetar_chatbot()
     criacoes = []
@@ -127,6 +138,17 @@ def test_cli_demo_conta_falhas(capsys, monkeypatch):
     erro = capsys.readouterr().err
     assert erro.count(MENSAGEM_FALHA_OPENAI) == len(PERGUNTAS_DEMO)
     assert "Detalhe: falha simulada" in erro
+
+
+def test_cli_saida_em_cp1252_troca_o_que_nao_cabe(monkeypatch):
+    # Saída redirecionada no Windows: o Python grava em cp1252, onde "→" e "✓" não existem.
+    saida = io.TextIOWrapper(io.BytesIO(), encoding="cp1252")
+    monkeypatch.setattr(sys, "stdout", saida)
+    monkeypatch.setattr("q2_chatbot.__main__.criar_modelo", lambda: modelo_com("Use → append ✓"))
+    monkeypatch.setattr("q2_chatbot.__main__.PERGUNTAS_DEMO", ["Como adiciono um item?"])
+    assert main(["--demo"]) == 0
+    saida.flush()
+    assert "Use ? append ?".encode("cp1252") in saida.buffer.getvalue()
 
 
 def test_cli_interativo_ignora_vazio_e_sai(monkeypatch):
