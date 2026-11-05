@@ -4,13 +4,13 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
 import q2_chatbot.router as modulo_router
 from apoio_q2 import modelo_com, modelo_que_falha
 from q2_chatbot.__main__ import PERGUNTAS_DEMO, main
-from q2_chatbot.chatbot import MENSAGEM_FALHA_OPENAI, MENSAGEM_SEM_CHAVE, criar_chatbot
+from q2_chatbot.chatbot import MENSAGEM_FALHA_OPENAI, MENSAGEM_SEM_CHAVE, criar_chatbot, perguntar
 from q2_chatbot.router import obter_chatbot, resetar_chatbot, router
 
 
@@ -20,36 +20,45 @@ def app():
     aplicacao = FastAPI()
     aplicacao.include_router(router)
     yield aplicacao
-    aplicacao.dependency_overrides.clear()
     resetar_chatbot()
 
 
-def com_modelo(app, modelo):
+def com_modelo(app, monkeypatch, modelo):
     chatbot = criar_chatbot(modelo)
-    app.dependency_overrides[obter_chatbot] = lambda: chatbot
+    monkeypatch.setattr("q2_chatbot.router.obter_chatbot", lambda: chatbot)
     return TestClient(app)
 
 
-def test_chat_responde_e_cria_conversa_id(app):
-    resposta = com_modelo(app, modelo_com("r1")).post("/chat", json={"pergunta": "Olá"})
+def test_chat_responde_e_cria_conversa_id(app, monkeypatch):
+    cliente = com_modelo(app, monkeypatch, modelo_com("r1"))
+    resposta = cliente.post("/chat", json={"pergunta": "Olá"})
     assert resposta.status_code == 200
     assert resposta.json()["resposta"] == "r1"
     uuid.UUID(resposta.json()["conversa_id"])
 
 
-def test_chat_mesma_conversa_mantem_contexto(app):
+def test_chat_mesma_conversa_mantem_contexto(app, monkeypatch):
     modelo = modelo_com("r1", "r2")
-    cliente = com_modelo(app, modelo)
+    cliente = com_modelo(app, monkeypatch, modelo)
     conversa_id = cliente.post("/chat", json={"pergunta": "q1"}).json()["conversa_id"]
     cliente.post("/chat", json={"pergunta": "q2", "conversa_id": conversa_id})
     assert len(modelo.recebidas[1]) == 4
 
 
-@pytest.mark.parametrize("corpo", [
+CORPOS_INVALIDOS = [
     {"pergunta": "   "}, {"pergunta": ""}, {}, {"pergunta": "ok", "conversa_id": "x" * 101},
-])
-def test_chat_valida_entrada(app, corpo):
-    assert com_modelo(app, modelo_com()).post("/chat", json=corpo).status_code == 422
+]
+
+
+@pytest.mark.parametrize("corpo", CORPOS_INVALIDOS)
+def test_chat_valida_entrada(app, monkeypatch, corpo):
+    assert com_modelo(app, monkeypatch, modelo_com()).post("/chat", json=corpo).status_code == 422
+
+
+@pytest.mark.parametrize("corpo", CORPOS_INVALIDOS)
+def test_chat_sem_chave_valida_o_corpo_antes(app, monkeypatch, corpo):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    assert TestClient(app).post("/chat", json=corpo).status_code == 422
 
 
 def test_chat_sem_chave_devolve_503(app, monkeypatch):
@@ -59,8 +68,9 @@ def test_chat_sem_chave_devolve_503(app, monkeypatch):
     assert resposta.json() == {"detail": MENSAGEM_SEM_CHAVE}
 
 
-def test_chat_falha_da_openai_devolve_502(app):
-    resposta = com_modelo(app, modelo_que_falha()).post("/chat", json={"pergunta": "Olá"})
+def test_chat_falha_da_openai_devolve_502(app, monkeypatch):
+    cliente = com_modelo(app, monkeypatch, modelo_que_falha())
+    resposta = cliente.post("/chat", json={"pergunta": "Olá"})
     assert resposta.status_code == 502
     assert resposta.json() == {"detail": MENSAGEM_FALHA_OPENAI}
 
@@ -79,6 +89,17 @@ def test_obter_chatbot_cria_uma_vez_com_concorrencia(monkeypatch):
         chatbots = list(executor.map(lambda _: obter_chatbot(), range(8)))
     assert len(criacoes) == 1
     assert all(c is chatbots[0] for c in chatbots)
+    resetar_chatbot()
+
+
+def test_obter_chatbot_nao_guarda_a_falha_sem_chave(monkeypatch):
+    resetar_chatbot()
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    with pytest.raises(HTTPException) as erro:
+        obter_chatbot()
+    assert erro.value.status_code == 503
+    monkeypatch.setattr("q2_chatbot.router.criar_modelo", lambda: modelo_com("oi"))
+    assert perguntar(obter_chatbot(), "Olá", "c1", "teste") == "oi"
     resetar_chatbot()
 
 
