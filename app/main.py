@@ -36,7 +36,10 @@ app = FastAPI(
 # A Q1 é sempre montada. A Q2 e a Q3 dependem da pilha de IA (LangChain, FAISS, PyTorch):
 # se ela não estiver instalada, o app sobe só com a Q1 e avisa no log.
 # A guarda pega só `ModuleNotFoundError`, nunca `Exception`: um bug real na Q2 ou na Q3
-# precisa derrubar o app, não fazer um terço dele sumir em silêncio.
+# precisa derrubar o app, não fazer um terço dele sumir em silêncio. Ela também pegaria um
+# módulo interno faltando (um import errado dentro de `q2_chatbot`, por exemplo), que é
+# `ModuleNotFoundError` do mesmo jeito; esse bug continua falhando alto porque os testes
+# importam `q2_chatbot.router` e `q3_busca.router` direto.
 app.include_router(router_livros)
 
 try:
