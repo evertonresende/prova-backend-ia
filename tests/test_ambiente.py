@@ -8,4 +8,9 @@ def test_ambiente_de_teste_sem_chave_e_sem_tracing():
 
 
 def test_slow_e_live_ficam_de_fora_por_padrao(pytestconfig):
-    assert pytestconfig.getoption("markexpr") == "not slow and not live"
+    opcoes = pytestconfig.getini("addopts")
+    assert opcoes[opcoes.index("-m") + 1] == "not slow and not live"
+
+
+def test_plugin_do_langsmith_fica_desligado(pytestconfig):
+    assert not pytestconfig.pluginmanager.has_plugin("langsmith_plugin")
