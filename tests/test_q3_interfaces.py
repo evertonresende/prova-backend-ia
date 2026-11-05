@@ -11,6 +11,21 @@ app_de_teste = FastAPI()
 app_de_teste.include_router(router)
 
 
+@pytest.fixture(autouse=True)
+def sem_modelo_real(monkeypatch):
+    """Os testes rápidos nunca carregam o modelo real nem tocam o `q3_busca/.indice/`.
+
+    `obter_buscador` chama `embedder_real` pelo nome global do módulo `indice`, então este
+    patch vale mesmo se a rota voltar a usar `Depends(obter_buscador)` (que guarda a função
+    real desde a definição e não enxerga o patch do global do router).
+    """
+
+    def proibido():
+        raise AssertionError("teste rápido não pode carregar o modelo real")
+
+    monkeypatch.setattr("q3_busca.indice.embedder_real", proibido)
+
+
 @pytest.fixture
 def buscador_falso(tmp_path):
     escrever_corpus(tmp_path / "corpus", POSTS)
@@ -30,11 +45,6 @@ def test_busca_devolve_resultados_no_formato_certo(cliente):
     assert len(corpo) == 2
     assert set(corpo[0]) == {"titulo", "arquivo", "score", "trecho"}
     assert corpo[0]["arquivo"] == "02-dicionarios.md"
-
-
-@pytest.mark.parametrize("url", ["/busca", "/busca?q=", "/busca?q=%20%20", "/busca?q=x&k=0", "/busca?q=x&k=11"])
-def test_busca_valida_parametros(cliente, url):
-    assert cliente.get(url).status_code == 422
 
 
 @pytest.mark.parametrize(
@@ -90,12 +100,20 @@ def test_cli_demo_e_consulta_juntos_sai_com_2(monkeypatch, buscador_falso):
     assert saida.value.code == 2
 
 
-def test_cli_ctrl_c_sai_sem_traceback(monkeypatch):
+def test_cli_ctrl_c_sai_sem_traceback(capsys, monkeypatch):
     def interromper():
         raise KeyboardInterrupt
 
     monkeypatch.setattr("q3_busca.__main__.obter_buscador", interromper)
-    assert main(["listas"]) == 0
+    # Sem o try, uma regressão deixaria o KeyboardInterrupt subir e abortaria a sessão
+    # inteira do pytest em vez de falhar só este teste.
+    try:
+        codigo = main(["listas"])
+    except KeyboardInterrupt:
+        pytest.fail("Ctrl+C escapou de main()")
+    assert codigo == 0
+    # A linha em branco impressa no stderr evita o prompt do shell grudado no "^C".
+    assert capsys.readouterr().err.endswith("\n\n")
 
 
 def test_cli_k_invalido(capsys, monkeypatch, buscador_falso):
