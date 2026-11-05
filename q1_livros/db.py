@@ -5,7 +5,7 @@ import unicodedata
 from collections.abc import Iterator
 
 from sqlalchemy import Engine, event
-from sqlalchemy.pool import StaticPool
+from sqlalchemy.pool import NullPool, StaticPool
 from sqlmodel import Session, SQLModel, create_engine
 
 
@@ -39,6 +39,13 @@ def criar_engine(url: str) -> Engine:
         # Banco em memória some quando a conexão fecha. O StaticPool mantém uma
         # única conexão viva, compartilhada entre as threads do TestClient.
         argumentos["poolclass"] = StaticPool
+    else:
+        # Arquivo: uma conexão nova por sessão, sem pool. Conexão de SQLite é barata
+        # (abrir um arquivo local), e assim nenhuma requisição espera numa fila do
+        # pool. Com o pool limitado do SQLAlchemy 2.x (5 + 10 conexões) e o threadpool
+        # do FastAPI, acima de ~55 requisições simultâneas tudo travava por 30 s e as
+        # requisições respondiam 500. Era o padrão do SQLAlchemy 1.x para arquivo.
+        argumentos["poolclass"] = NullPool
     engine = create_engine(url, **argumentos)
 
     # O listener tem que ser ligado logo depois de criar o engine, antes de
@@ -52,8 +59,10 @@ def criar_engine(url: str) -> Engine:
 
 
 def url_padrao() -> str:
-    """URL do banco: `LIVROS_DB_PATH` se definida, senão `livros.db` na pasta atual."""
-    return f"sqlite:///{os.getenv('LIVROS_DB_PATH', 'livros.db')}"
+    """URL do banco: `LIVROS_DB_PATH` se definida e não vazia, senão `livros.db` na pasta atual."""
+    # `or` em vez do padrão do getenv para que `LIVROS_DB_PATH=` vazio no .env
+    # também caia no padrão (vazio viraria `sqlite:///`, um banco em memória).
+    return f"sqlite:///{os.getenv('LIVROS_DB_PATH') or 'livros.db'}"
 
 
 # Criar o engine não abre conexão nem cria o arquivo, então é seguro no import.

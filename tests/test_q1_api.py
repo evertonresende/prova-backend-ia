@@ -48,6 +48,8 @@ def test_cadastrar_devolve_201_com_id_e_location(cliente):
 ])
 def test_cadastrar_invalido_devolve_422(cliente, corpo):
     assert cliente.post("/livros", json=corpo).status_code == 422
+    # Entrada inválida não grava nada.
+    assert cliente.get("/livros").json() == []
 
 
 def test_buscar_por_trecho_do_titulo(cliente):
@@ -97,6 +99,19 @@ def test_curingas_sao_literais(cliente, termo, esperado):
     assert titulos(cliente.get("/livros", params={"titulo": termo})) == esperado
 
 
+@pytest.mark.parametrize("filtro", ["titulo", "autor"])
+def test_filtro_tem_no_maximo_200_caracteres(cliente, filtro):
+    # Com a tabela vazia o LIKE nem roda: o teste precisa de um livro.
+    cadastrar(cliente)
+    assert cliente.get("/livros", params={filtro: "x" * 201}).status_code == 422
+    resposta = cliente.get("/livros", params={filtro: "x" * 200})
+    assert resposta.status_code == 200
+    assert resposta.json() == []
+    # Sem o limite, o NFKD transforma cada U+FDFA em 18 caracteres, o padrão do LIKE
+    # passa de 50.000 bytes e o SQLite o recusa: a resposta era 500.
+    assert cliente.get("/livros", params={filtro: "ﷺ" * 1600}).status_code == 422
+
+
 def test_obter_por_id(cliente):
     cadastrar(cliente)
     assert cliente.get("/livros/1").json()["titulo"] == "Dom Casmurro"
@@ -122,3 +137,15 @@ def test_openapi_documenta_as_rotas(cliente):
     assert esquema["paths"]["/livros"]["get"]["summary"]
     assert "404" in esquema["paths"]["/livros/{livro_id}"]["get"]["responses"]
     assert "examples" in esquema["components"]["schemas"]["LivroCriar"]
+
+
+def test_openapi_tem_exemplos_location_e_corpo_do_404(cliente):
+    esquema = cliente.app.openapi()
+    resposta_404 = esquema["paths"]["/livros/{livro_id}"]["get"]["responses"]["404"]
+    assert resposta_404["content"]["application/json"]["example"] == {"detail": "Livro não encontrado"}
+    resposta_201 = esquema["paths"]["/livros"]["post"]["responses"]["201"]
+    assert resposta_201["headers"]["Location"]["schema"] == {"type": "string"}
+    assert resposta_201["content"]["application/json"]["schema"]["$ref"].endswith("/LivroLer")
+    filtros = {p["name"]: p for p in esquema["paths"]["/livros"]["get"]["parameters"]}
+    assert [e["value"] for e in filtros["titulo"]["examples"].values()] == ["casmurro"]
+    assert [e["value"] for e in filtros["autor"]["examples"].values()] == ["alencar"]

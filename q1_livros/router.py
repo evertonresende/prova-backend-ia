@@ -23,6 +23,16 @@ Sessao = Annotated[Session, Depends(obter_sessao)]
         "Cria um livro a partir de título, autor, data de publicação (AAAA-MM-DD) e resumo. "
         "Devolve o livro com o `id` gerado e o endereço dele no header `Location`."
     ),
+    responses={
+        201: {
+            "headers": {
+                "Location": {
+                    "description": "Endereço do livro criado, por exemplo /livros/1",
+                    "schema": {"type": "string"},
+                }
+            }
+        }
+    },
 )
 def cadastrar_livro(dados: LivroCriar, sessao: Sessao, response: Response) -> Livro:
     # A linha nasce de `model_validate` porque o construtor de `Livro` (table=True)
@@ -47,13 +57,25 @@ def cadastrar_livro(dados: LivroCriar, sessao: Sessao, response: Response) -> Li
 )
 def buscar_livros(
     sessao: Sessao,
+    # O limite de 200 é o tamanho máximo dos campos. Sem ele, um termo longo passava do
+    # limite de 50.000 bytes do padrão do LIKE no SQLite e a busca respondia 500.
     titulo: Annotated[
         str | None,
-        Query(description="Trecho do título. Ignora maiúsculas e acentos; vazio = sem filtro."),
+        Query(
+            max_length=200,
+            description="Trecho do título, até 200 caracteres. Ignora maiúsculas e acentos; "
+            "vazio = sem filtro.",
+            openapi_examples={"casmurro": {"value": "casmurro"}},
+        ),
     ] = None,
     autor: Annotated[
         str | None,
-        Query(description="Trecho do autor. Ignora maiúsculas e acentos; vazio = sem filtro."),
+        Query(
+            max_length=200,
+            description="Trecho do autor, até 200 caracteres. Ignora maiúsculas e acentos; "
+            "vazio = sem filtro.",
+            openapi_examples={"alencar": {"value": "alencar"}},
+        ),
     ] = None,
 ) -> list[Livro]:
     consulta = select(Livro).order_by(Livro.id)
@@ -78,7 +100,12 @@ def buscar_livros(
         "O `id` precisa ser um inteiro entre 1 e 2**63 - 1 (o limite do INTEGER do SQLite); "
         "fora disso a resposta é 422."
     ),
-    responses={404: {"description": "Livro não encontrado"}},
+    responses={
+        404: {
+            "description": "Livro não encontrado",
+            "content": {"application/json": {"example": {"detail": "Livro não encontrado"}}},
+        }
+    },
 )
 def obter_livro(livro_id: Annotated[int, Path(ge=1, le=2**63 - 1)], sessao: Sessao) -> Livro:
     livro = sessao.get(Livro, livro_id)

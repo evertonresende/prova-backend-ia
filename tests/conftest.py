@@ -6,6 +6,10 @@ desenvolvedor tenha uma chave ou o tracing ligado.
 
 Ele não importa nenhuma biblioteca de IA (o `dotenv` só entra dentro da
 fixture): o atalho "só Q1" precisa rodar sem elas instaladas.
+
+O pacote `langsmith` instala um plugin do pytest, que o pytest carregaria antes
+deste arquivo. O `pytest.ini` desliga esse plugin (`-p no:langsmith_plugin`), e
+por isso nada da pilha de IA é importado antes daqui.
 """
 
 import os
@@ -15,7 +19,7 @@ import pytest
 
 # As variáveis *_V2 são lidas primeiro e o LangSmith guarda o valor em cache na
 # primeira leitura, então tudo isso tem que ser definido antes de qualquer
-# import de biblioteca de IA.
+# import de biblioteca de IA (o plugin do langsmith fica desligado no `pytest.ini`).
 for _nome in ("LANGSMITH_TRACING", "LANGSMITH_TRACING_V2", "LANGCHAIN_TRACING", "LANGCHAIN_TRACING_V2"):
     os.environ[_nome] = "false"
 
