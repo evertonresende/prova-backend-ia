@@ -48,6 +48,8 @@ def test_cadastrar_devolve_201_com_id_e_location(cliente):
 ])
 def test_cadastrar_invalido_devolve_422(cliente, corpo):
     assert cliente.post("/livros", json=corpo).status_code == 422
+    # Entrada inválida não grava nada.
+    assert cliente.get("/livros").json() == []
 
 
 def test_buscar_por_trecho_do_titulo(cliente):

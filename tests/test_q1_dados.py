@@ -8,7 +8,7 @@ from sqlmodel import Session, select
 
 from q1_livros.db import criar_engine, criar_tabelas, normalizar, url_padrao
 from q1_livros.modelos import Livro, LivroCriar
-from q1_livros.seed import LIVROS_EXEMPLO, popular
+from q1_livros.seed import LIVROS_EXEMPLO, main, popular
 
 VALIDO = {"titulo": "T", "autor": "A", "data_publicacao": "2000-01-01", "resumo": "R"}
 
@@ -96,3 +96,23 @@ def test_seed_popula_10_livros_e_e_idempotente():
         assert popular(sessao) == len(LIVROS_EXEMPLO) == 10
         assert popular(sessao) == 0
         assert len(sessao.exec(select(Livro)).all()) == 10
+
+
+def test_popular_insere_so_os_que_faltam():
+    engine = criar_engine("sqlite://")
+    criar_tabelas(engine)
+    with Session(engine) as sessao:
+        sessao.add(Livro.model_validate(LivroCriar(**LIVROS_EXEMPLO[0])))
+        sessao.commit()
+        assert popular(sessao) == 9
+        assert len(sessao.exec(select(Livro)).all()) == 10
+
+
+def test_seed_main_grava_no_arquivo_de_livros_db_path(monkeypatch, tmp_path, capsys):
+    # O engine do seed nasce dentro do main(), então vale o LIVROS_DB_PATH da hora da chamada.
+    monkeypatch.setenv("LIVROS_DB_PATH", str(tmp_path / "seed.db"))
+    main()
+    assert capsys.readouterr().out == "10 livro(s) cadastrado(s).\n"
+    main()
+    assert capsys.readouterr().out == "0 livro(s) cadastrado(s).\n"
+    assert (tmp_path / "seed.db").exists()
