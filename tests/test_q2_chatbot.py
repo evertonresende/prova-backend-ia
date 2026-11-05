@@ -87,7 +87,7 @@ def test_criar_modelo_configuracao_padrao(monkeypatch, valor_env):
     assert modelo.model_name == "gpt-6-luna"
     assert modelo.request_timeout == 60
     assert modelo.max_retries == 2
-    assert modelo.reasoning_effort == "low"
+    assert modelo.reasoning_effort == "medium"
     assert modelo.temperature is None
 
 

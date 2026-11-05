@@ -25,7 +25,7 @@ PROMPT_SISTEMA = """Você é um assistente especialista em Python.
 MODELO_PADRAO = "gpt-6-luna"
 TIMEOUT_S = 60
 MAX_TENTATIVAS = 2
-ESFORCO_RACIOCINIO = "low"
+ESFORCO_RACIOCINIO = "medium"
 
 MENSAGEM_SEM_CHAVE = (
     "OPENAI_API_KEY não definida. Copie .env.example para .env e preencha a chave. "
@@ -59,8 +59,10 @@ def criar_modelo() -> ChatOpenAI:
         timeout=TIMEOUT_S,
         # `max_retries` conta as novas tentativas depois da primeira.
         max_retries=MAX_TENTATIVAS,
-        # O gpt-6-luna é modelo de raciocínio (padrão `medium`). `low` corta
-        # latência e custo; pergunta de Python não pede raciocínio profundo.
+        # O gpt-6-luna é modelo de raciocínio (padrão `medium`). Com `low`, ele
+        # ignorava a regra de escopo do prompt: na demo, respondeu "Qual é a
+        # capital da França?" direto em 8 de 8 execuções; com `medium`,
+        # redirecionou para Python em 9 de 10, com a mesma latência.
         # `reasoning_effort` vai sempre: um `OPENAI_MODEL` sem raciocínio o recusa.
         reasoning_effort=ESFORCO_RACIOCINIO,
         # Sem `temperature`/`top_p` de propósito: a OpenAI manda removê-los nos
