@@ -107,7 +107,11 @@ class Buscador:
             self.indice = faiss.deserialize_index(np.frombuffer(caminho_indice.read_bytes(), dtype=np.uint8))
             return
 
-        logger.info("Índice ausente ou desatualizado: gerando os embeddings de %d posts.", len(docs))
+        logger.info(
+            "Índice ausente ou desatualizado: gerando os embeddings de %d posts (o índice fica salvo em %s).",
+            len(docs),
+            pasta_indice,
+        )
         vetores = embed([texto_documento(d) for d in docs])
         # Os vetores têm norma 1, então o produto interno (IP) entre dois deles é exatamente o
         # cosseno do ângulo entre eles: quanto maior, mais parecidos (1 = mesma direção).

@@ -76,6 +76,21 @@ def test_cli_sem_argumentos_sai_com_2():
     assert saida.value.code == 2
 
 
+def test_cli_demo_e_consulta_juntos_sai_com_2(monkeypatch, buscador_falso):
+    monkeypatch.setattr("q3_busca.__main__.obter_buscador", lambda: buscador_falso)
+    with pytest.raises(SystemExit) as saida:
+        main(["listas", "--demo"])
+    assert saida.value.code == 2
+
+
+def test_cli_ctrl_c_sai_sem_traceback(monkeypatch):
+    def interromper():
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr("q3_busca.__main__.obter_buscador", interromper)
+    assert main(["listas"]) == 0
+
+
 def test_cli_k_invalido(capsys, monkeypatch, buscador_falso):
     monkeypatch.setattr("q3_busca.__main__.obter_buscador", lambda: buscador_falso)
     assert main(["listas", "-k", "0"]) == 2
