@@ -73,6 +73,12 @@ def test_trecho_longo_colapsa_espacos_e_corta_em_200(tmp_path):
     assert resultado.trecho == "linha um " + "x" * 191 + "…"
 
 
+def test_trecho_sem_blocos_de_codigo(tmp_path):
+    escrever_corpus(tmp_path / "c", {"codigo.md": "# Código\n\n```python\nx = 1\n```\nTexto do post."})
+    resultado = buscador(carregar_corpus(tmp_path / "c"), tmp_path).buscar("texto", k=1)[0]
+    assert resultado.trecho == "Texto do post."
+
+
 def test_indice_salvo_e_reaproveitado(docs, tmp_path):
     buscador(docs, tmp_path)
     assert (tmp_path / "idx" / "indice.faiss").exists()

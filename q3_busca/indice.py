@@ -14,6 +14,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -173,8 +174,10 @@ def _gravar_atomico(destino: Path, dados: bytes) -> None:
 
 
 def _trecho(corpo: str) -> str:
-    """Começo do post para mostrar no resultado, com espaços e quebras de linha colapsados."""
-    texto = " ".join(corpo.split())
+    """Começo do post para mostrar no resultado, sem blocos de código e com espaços colapsados."""
+    # O trecho é para leitura: um bloco de código cru no começo do resultado polui a saída.
+    sem_codigo = re.sub(r"```.*?```", " ", corpo, flags=re.S)
+    texto = " ".join(sem_codigo.split())
     return texto if len(texto) <= 200 else texto[:200] + "…"
 
 
