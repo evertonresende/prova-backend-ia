@@ -160,6 +160,14 @@ def test_cli_interativo_ignora_vazio_e_sai(monkeypatch):
     assert len(modelo.recebidas) == 1
 
 
+def test_cli_interativo_segue_apos_falha_e_aceita_sair_maiusculo(capsys, monkeypatch):
+    entradas = iter(["Olá", "Olá", "SAIR"])
+    monkeypatch.setattr("q2_chatbot.__main__.criar_modelo", modelo_que_falha)
+    monkeypatch.setattr("builtins.input", lambda _="": next(entradas))
+    assert main([]) == 0
+    assert capsys.readouterr().err.count(MENSAGEM_FALHA_OPENAI) == 2
+
+
 @pytest.mark.parametrize("interrupcao", [EOFError, KeyboardInterrupt])
 def test_cli_ctrl_d_e_ctrl_c_saem_sem_traceback(capsys, monkeypatch, interrupcao):
     def entrada(_=""):
