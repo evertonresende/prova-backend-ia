@@ -86,8 +86,8 @@ def test_chat_falha_loga_conversa_id_com_repr(app, monkeypatch, caplog):
     assert "\n" not in registro.getMessage()
 
 
+@pytest.mark.usefixtures("app")
 def test_obter_chatbot_cria_uma_vez_com_concorrencia(monkeypatch):
-    resetar_chatbot()
     criacoes = []
 
     def criar_modelo_lento():
@@ -100,18 +100,18 @@ def test_obter_chatbot_cria_uma_vez_com_concorrencia(monkeypatch):
         chatbots = list(executor.map(lambda _: obter_chatbot(), range(8)))
     assert len(criacoes) == 1
     assert all(c is chatbots[0] for c in chatbots)
-    resetar_chatbot()
 
 
+# A fixture `app` zera o chatbot do router antes e depois, mesmo se um assert falhar no meio:
+# sem isso, um chatbot fake ficaria no global e vazaria para os outros testes.
+@pytest.mark.usefixtures("app")
 def test_obter_chatbot_nao_guarda_a_falha_sem_chave(monkeypatch):
-    resetar_chatbot()
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     with pytest.raises(HTTPException) as erro:
         obter_chatbot()
     assert erro.value.status_code == 503
     monkeypatch.setattr("q2_chatbot.router.criar_modelo", lambda: modelo_com("oi"))
     assert perguntar(obter_chatbot(), "Olá", "c1", "teste") == "oi"
-    resetar_chatbot()
 
 
 def test_cli_sem_chave_sai_com_1_sem_traceback(capsys, monkeypatch):
